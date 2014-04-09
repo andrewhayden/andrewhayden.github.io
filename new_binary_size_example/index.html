@@ -1,0 +1,256 @@
+<!--
+  Copyright 2014 The Chromium Authors. All rights reserved.
+  Use of this source code is governed by a BSD-style license that can be
+  found in the LICENSE file.
+-->
+<html>
+<head>
+<title>Binary Size Report</title>
+<script src="d3/d3.js" charset="utf-8"></script>
+<script src="D3SymbolTreeMap.js" charset="utf-8"></script>
+<script src="data.js" charset="utf-8"></script>
+<style>
+body {
+    margin: 0px;
+    padding: 0px;
+}
+</style>
+<script>
+var treemap;
+function init() {
+    var idealSize = populateIdealSizes();
+    document.getElementById('width').disabled = false;
+    document.getElementById('height').disabled = false;
+    treemap = new D3SymbolTreeMap(idealSize.width,idealSize.height);
+    treemap.init();
+}
+
+function populateIdealSizes() {
+    var width = window.innerWidth - 20;
+    var height = window.innerHeight - 125;
+    document.getElementById('width').value = width;
+    document.getElementById('height').value = height;
+    return {'width': width, 'height': height};
+}
+
+function resize() {
+    setTimeout(function(){
+        treemap.resize(
+            parseInt(document.getElementById('width').value),
+            parseInt(document.getElementById('height').value));
+        }, 1);
+}
+
+function applyFilters() {
+    // Type filters
+    var ok = '';
+    var acceptCode = document.getElementById('show_code').checked === true;
+    var acceptData = document.getElementById('show_data').checked === true;
+    var acceptRodata = document.getElementById('show_rodata').checked === true;
+    var acceptVtable = document.getElementById('show_vtable').checked === true;
+    if (acceptCode) ok += 'tT';
+    if (acceptData) ok += 'dD';
+    if (acceptRodata) ok += 'rR';
+    if (acceptVtable) ok += '@'; // non-standard, hack
+    var typeFilter = undefined;
+    var isCustom = (!acceptCode || !acceptData || !acceptRodata || !acceptVtable);
+    if (isCustom) {
+        console.log('filter: accepted types are "' + ok + '"');
+        typeFilter = function(datum){
+            if (datum.depth === 0) return true; // root node
+            if (datum.t === undefined) return true;
+            return ok.indexOf(datum.t) !== -1;
+        }
+    }
+
+    // Regex filter
+    var regexFilter = undefined;
+    if (document.getElementById('regex_filter_check').checked === true) {
+        var regexText = document.getElementById('regex_filter').value;
+        if (regexText && regexText.length > 0) {
+            var regex = new RegExp(regexText);
+            console.log('filter: regex is "' + regexText + '"');
+            regexFilter = function(datum) {
+                if (datum.depth === 0) return true; // root node
+                var fullName = this.pathFor(datum);
+                if (datum.children === undefined) { // it is a leaf node (symbol)
+                    fullName += ':' + datum.n;
+                }
+                return regex.test(fullName);
+            }
+        }
+    }
+
+    // Make a filter to apply to the tree
+    var filter = function() { return true; };
+    if (typeFilter && (!regexFilter)) {
+        filter = typeFilter;
+    } else if ((!typeFilter) && regexFilter) {
+        filter = regexFilter;
+    } else if (typeFilter && regexFilter) {
+        filter = function(datum) {
+            return typeFilter.call(this, datum)
+                && regexFilter.call(this, datum);
+        }
+    }
+    treemap.filter(filter);
+}
+
+function toggleRegex() {
+    var checkbox = document.getElementById('regex_filter_check');
+    var field = document.getElementById('regex_filter');
+    field.disabled = !checkbox.checked;
+}
+
+function showReport(title, data, headers, dataFunction, styleFunction) {
+    var div =  d3.select('body').append('div')
+        .style('margin', '0')
+        .style('padding', '5px')
+        .style('position', 'absolute')
+        .style('top', '10%')
+        .style('left', '10%')
+        .style('background-color', 'rgba(255,255,255,0.8)')
+        .style('width', '80%')
+        .style('height', '80%')
+        .style('z-index', '2147483647')
+        .style('border', '1px solid black')
+        .style('box-shadow', '3px 3px rgba(70,70,70,0.5)')
+        .style('text-align', 'center')
+        .style('border-radius', '10px');
+    var titlebar = div.append('div')
+        .style('margin', '0')
+        .style('padding', '5px')
+        .style('position', 'absolute')
+        .style('top', '0%')
+        .style('left', '0%')
+        .style('width', '100%')
+        .style('height', '10%')
+        .style('font-size', 'x-large');
+    titlebar.text(title);
+    var controls = div.append('div')
+        .style('margin', '0')
+        .style('padding', '5px')
+        .style('position', 'absolute')
+        .style('top', '90%')
+        .style('left', '0%')
+        .style('width', '100%')
+        .style('height', '10%');
+    controls.append('input').attr('type', 'button')
+        .attr('value', 'Dismiss')
+        .on('click', function(){div.remove();});
+
+    var tableDiv = div.append('div')
+        .style('overflow', 'auto')
+        .style('position', 'absolute')
+        .style('top', '10%')
+        .style('left', '0%')
+        .style('width', '100%')
+        .style('height', '80%')
+        .style('border-top', '1px solid rgb(230,230,230)')
+        .style('border-bottom', '1px solid rgb(230,230,230)');
+    var table = tableDiv.append('table')
+        .attr('border', '1')
+        .style('margin-left', 'auto')
+        .style('margin-right', 'auto');
+    var header = table.append('tr');
+    for (var i = 0; i < headers.length; i++) {
+        header.append('th').text(headers[i]);
+    }
+
+    for (var i = 0; i < data.length; i++) {
+        var row = table.append('tr');
+        for (j = 0; j < headers.length; j++) {
+            var td = row.append('td');
+            if (styleFunction) {
+                styleFunction.call(this, td, j);
+            }
+            td.text(dataFunction.call(this, data[i], j));
+        }
+    }
+}
+
+function bigSymbolsReport() {
+    var list = treemap.biggestSymbols(100);
+    var headers = ['Rank', 'Size (Bytes)', 'Type', 'Location'];
+    var styleFunction = function(selection, index) {
+        if (index === 3) {
+            selection.style('font-family', 'monospace');
+        }
+    };
+    var recordIndex = 1;
+    var dataFunction = function(record, index) {
+        if (index === 0) {
+            return recordIndex++;
+        } else if (index === 1) {
+            return D3SymbolTreeMap._pretty(record.value);
+        } else if (index === 2) {
+            return record.t;
+        } else {
+            var link;
+            if (treemap.pathFor(record).indexOf('/out') == 0) {
+                link = treemap.pathFor(record);
+            } else {
+                link = '<a href="https://code.google.com/p/chromium/codesearch#chromium/src'
+                   + treemap.pathFor(record) + '" target="_blank">' + escape(treemap.pathFor(record)) + '</a>';
+            }
+            return link + ':<br>' + escape(record.n);
+        }
+    };
+    showReport('100 Largest Symbols', list, headers, dataFunction, styleFunction);
+}
+
+function bigPathsReport() {
+    var list = treemap.biggestPaths(100);
+    var headers = ['Rank', 'Size (Bytes)', 'Location'];
+    var styleFunction = function(selection, index) {
+        if (index === 2) {
+            selection.style('font-family', 'monospace');
+        }
+    };
+    var recordIndex = 1;
+    var dataFunction = function(record, index) {
+        if (index === 0) {
+            return recordIndex++;
+        } else if (index === 1) {
+            return D3SymbolTreeMap._pretty(record.value);
+        } else if (index === 2) {
+            var link;
+            if (treemap.pathFor(record).indexOf('/out') == 0) {
+                link = treemap.pathFor(record);
+            } else {
+                link = '<a href="https://code.google.com/p/chromium/codesearch#chromium/src'
+                   + treemap.pathFor(record) + '" target="_blank">' + escape(treemap.pathFor(record)) + '</a>';
+            }
+            return link;
+        }
+    };
+    showReport('100 Largest Paths', list, headers, dataFunction, styleFunction);
+}
+
+function escape(str) {
+    return str.replace(/&/g, '&amp;')
+              .replace(/"/g, '&quot;')
+              .replace(/</g, '&lt;')
+              .replace(/>/g, '&gt;');
+}
+</script>
+</head>
+<body onload='init()'>
+<div style='text-align: center'>
+<span style='font-size: x-large; font-weight: bold; font-variant: small-caps'>Binary Size Report</span>
+<br><span style='font-size: small; font-style: italic;'>Controls: Double-click to zoom in, double-click outermost to zoom out, shift-double-click to return to root.</span>
+<br>Resize to: <input type=text id='width' value='0' disabled size=10></input>x<input type=text id='height' value='0' disabled size=10></input> <input type=button value='Go' onclick='resize()'></input>
+<br>Show:
+<input type='checkbox' id='show_code' checked>Code</input>,
+<input type='checkbox' id='show_data' checked>Data</input>,
+<input type='checkbox' id='show_rodata' checked>Read-Only Data</input>,
+<input type='checkbox' id='show_vtable' checked>Vtable</input>,
+<input onclick='toggleRegex()' type='checkbox' id='regex_filter_check'>Regex (path:symbol)</input>
+<input type='text' id='regex_filter' size=10 disabled></input>
+<input type=button value='Apply Filters' onclick='applyFilters()'></input>
+<br>View Reports:
+    <a href='#' onclick='bigSymbolsReport()'>Large Symbols</a>,
+    <a href='#' onclick='bigPathsReport()'>Large Locations</a>
+</div>
+</body>
+</html>
