@@ -6,7 +6,7 @@
 // 1. Visibility functions: base on boxPadding.t, not 15
 // 2. Track a maxDisplayDepth that is user-settable:
 //    maxDepth == currentRoot.depth + maxDisplayDepth
-function D3SymbolTreeMap(mapWidth, mapHeight) {
+function D3SymbolTreeMap(mapWidth, mapHeight, levelsToShow) {
     this._mapContainer = undefined;
     this._mapWidth = mapWidth;
     this._mapHeight = mapHeight;
@@ -27,6 +27,7 @@ function D3SymbolTreeMap(mapWidth, mapHeight) {
     this._currentNodes = undefined;
     this._currentMaxDepth = undefined;
     this._treeData = undefined;
+    this._maxLevelsToShow = levelsToShow;
 }
 
 /**
@@ -138,7 +139,7 @@ D3SymbolTreeMap.prototype._setData = function(data) {
     console.timeEnd('_crunchStats');
     this._currentRoot = this._treeData;
     this._currentNodes = this._layout.nodes(this._currentRoot);
-    this._currentMaxDepth = 3;
+    this._currentMaxDepth = this._maxLevelsToShow;
     this._doLayout();
 }
 
@@ -225,8 +226,16 @@ D3SymbolTreeMap.prototype._zoomDatum = function(datum) {
     this._hideInfoBox(datum);
     this._currentRoot = datum;
     this._currentNodes = this._layout.nodes(this._currentRoot);
-    this._currentMaxDepth = this._currentRoot.depth + 3;
+    this._currentMaxDepth = this._currentRoot.depth + this._maxLevelsToShow;
     console.log('zooming into datum ' + this._currentRoot.n);
+    this._doLayout();
+}
+
+D3SymbolTreeMap.prototype.setMaxLevels = function(levelsToShow) {
+    this._maxLevelsToShow = levelsToShow;
+    this._currentNodes = this._layout.nodes(this._currentRoot);
+    this._currentMaxDepth = this._currentRoot.depth + this._maxLevelsToShow;
+    console.log('setting max levels to show: ' + this._maxLevelsToShow);
     this._doLayout();
 }
 
@@ -245,7 +254,8 @@ D3SymbolTreeMap.prototype._clone = function(datum, filter) {
     if (this.__cloneState === undefined) {
         console.time('_clone');
         trackingStats = true;
-        this.__cloneState = {'accepted': 0, 'rejected': 0, 'forced': 0};
+        this.__cloneState = {'accepted': 0, 'rejected': 0,
+                              'forced': 0, 'pruned': 0};
     }
 
     // Must go depth-first. All parents of children that are accepted by the
@@ -271,9 +281,13 @@ D3SymbolTreeMap.prototype._clone = function(datum, filter) {
         accept = true;
     } else if (filter !== undefined && filter.call(this, datum) !== true) {
         this.__cloneState.rejected++;
-    } else {
+    } else if (datum.children === undefined) {
+        // Accept leaf nodes that passed the filter
         this.__cloneState.accepted++;
         accept = true;
+    } else {
+        // Non-leaf node. If no children are accepted, prune it.
+        this.__cloneState.pruned++;
     }
 
     if (accept) {
@@ -300,7 +314,9 @@ D3SymbolTreeMap.prototype._clone = function(datum, filter) {
             this.__cloneState.forced + ' forced by accepted children, ' +
             this.__cloneState.accepted + ' accepted on their own merits), ' +
             this.__cloneState.rejected + ' nodes (and their children) ' +
-                                         'filtered out.');
+                                         'filtered out,' +
+            this.__cloneState.pruned + ' nodes pruned because because no ' +
+                                       'children remained.');
         delete this.__cloneState;
     }
     return copy;
