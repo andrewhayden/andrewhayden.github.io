@@ -25,9 +25,9 @@ function D3SymbolTreeMap(mapWidth, mapHeight, levelsToShow) {
     this._layout = undefined;
     this._currentRoot = undefined;
     this._currentNodes = undefined;
-    this._currentMaxDepth = undefined;
     this._treeData = undefined;
     this._maxLevelsToShow = levelsToShow;
+    this._currentMaxDepth = this._maxLevelsToShow;
 }
 
 /**
@@ -73,32 +73,32 @@ D3SymbolTreeMap._byteify = function(num) {
 D3SymbolTreeMap._NM_SYMBOL_TYPES = 'ABbCDdGgiNpRrSsTtUuVvWw@-?';
 D3SymbolTreeMap._NM_SYMBOL_TYPE_DESCRIPTIONS = {
     // Definitions concisely derived from the nm 'man' page
-    'A': 'absolute (A)',
-    'B': 'uninit data (B)',
-    'b': 'uninit data (b)',
-    'C': 'common (C)',
-    'D': 'initialized data (D)',
-    'd': 'initialized data (d)',
-    'G': 'small initialized data (G)',
-    'g': 'small initialized data (g)',
-    'i': 'indirect (i)',
-    'N': 'debugging (N)',
-    'p': 'stack unwind (p)',
-    'R': 'read-only data (R)',
-    'r': 'read-only data (r)',
-    'S': 'uninit small data (S)',
-    's': 'uninit small data (s)',
-    'T': 'code (T)',
-    't': 'code (t)',
-    'U': 'undefined (U)',
-    'u': 'unique global (u)',
-    'V': 'weak object (V)',
-    'v': 'weak object (v)',
-    'W': 'weak symbol (W)',
-    'w': 'weak symbol (w)',
-    '@': 'vtable (@)', // non-standard, hack.
-    '-': 'stabs symbol (-)',
-    '?': 'unrecognized (?)',
+    'A': 'Global absolute (A)',
+    'B': 'Global uninitialized data (B)',
+    'b': 'Local uninitialized data (b)',
+    'C': 'Global uninitialized common (C)',
+    'D': 'Global initialized data (D)',
+    'd': 'Local initialized data (d)',
+    'G': 'Global small initialized data (G)',
+    'g': 'Local small initialized data (g)',
+    'i': 'Indirect function (i)',
+    'N': 'Debugging (N)',
+    'p': 'Stack unwind (p)',
+    'R': 'Global read-only data (R)',
+    'r': 'Local read-only data (r)',
+    'S': 'Global small uninitialized data (S)',
+    's': 'Local small uninitialized data (s)',
+    'T': 'Global code (T)',
+    't': 'Local code (t)',
+    'U': 'Undefined (U)',
+    'u': 'Unique (u)',
+    'V': 'Global weak object (V)',
+    'v': 'Local weak object (v)',
+    'W': 'Global weak symbol (W)',
+    'w': 'Local weak symbol (w)',
+    '@': 'Vtable entry (@)', // non-standard, hack.
+    '-': 'STABS debugging (-)',
+    '?': 'Unrecognized (?)',
 };
 /**
  * Given a symbol type code, look up and return a human-readable description
@@ -113,7 +113,39 @@ D3SymbolTreeMap._getSymbolDescription = function(type) {
     }
     return result;
 };
-D3SymbolTreeMap._symbolTypeColor = d3.scale.category10();
+
+// Qualitative 12-value pastel Brewer palette.
+D3SymbolTreeMap._colorArray = [
+  'rgb(141,211,199)',
+  'rgb(255,255,179)',
+  'rgb(190,186,218)',
+  'rgb(251,128,114)',
+  'rgb(128,177,211)',
+  'rgb(253,180,98)',
+  'rgb(179,222,105)',
+  'rgb(252,205,229)',
+  'rgb(217,217,217)',
+  'rgb(188,128,189)',
+  'rgb(204,235,197)',
+  'rgb(255,237,111)'];
+
+D3SymbolTreeMap._initColorMap = function() {
+    var map = {};
+    var numColors = D3SymbolTreeMap._colorArray.length;
+    for (var x=0; x<D3SymbolTreeMap._NM_SYMBOL_TYPES.length; x++) {
+        var key = D3SymbolTreeMap._NM_SYMBOL_TYPES.charAt(x);
+        var index = x % numColors;
+        map[key] = d3.rgb(D3SymbolTreeMap._colorArray[index]);
+    }
+    D3SymbolTreeMap._colorMap = map;
+}
+D3SymbolTreeMap._initColorMap();
+
+D3SymbolTreeMap.getColorForType = function(type) {
+    var result = D3SymbolTreeMap._colorMap[type];
+    if (result === undefined) return d3.rgb('rgb(255,255,255)');
+    return result;
+}
 
 D3SymbolTreeMap.prototype.init = function() {
     this.infobox = this._createInfoBox();
@@ -379,8 +411,7 @@ D3SymbolTreeMap.prototype._handleInodes = function() {
         })
         .style('background-color', function(datum) {
             if (datum.t === undefined) return 'rgb(220,220,220)';
-            var tempcolor = D3SymbolTreeMap._symbolTypeColor(datum.t);
-            return d3.rgb(tempcolor).brighter().toString();
+            return D3SymbolTreeMap.getColorForType(datum.t).toString();
         })
         .on('mouseover', function(datum){
             thisTreeMap._highlightElement.call(
@@ -392,8 +423,9 @@ D3SymbolTreeMap.prototype._handleInodes = function() {
                 thisTreeMap, datum, d3.select(this));
             thisTreeMap._hideInfoBox.call(thisTreeMap, datum);
         })
-        .on('mousemove', function(){ thisTreeMap._moveInfoBox.call(
-            thisTreeMap, event); })
+        .on('mousemove', function(){
+            thisTreeMap._moveInfoBox.call(thisTreeMap, event);
+        })
         .on('dblclick', function(datum){
             if (datum !== thisTreeMap._currentRoot) {
                 // Zoom into the selection
@@ -432,7 +464,7 @@ D3SymbolTreeMap.prototype._handleInodes = function() {
         .text(function(datum) {
             var sizeish = ' [' + D3SymbolTreeMap._byteify(datum.value) + ']'
             var text;
-            if (datum.k === 'b') {
+            if (datum.k === 'b') { // bucket
                 if (datum === thisTreeMap._currentRoot) {
                     text = thisTreeMap.pathFor(datum) + ': '
                         + D3SymbolTreeMap._getSymbolDescription(datum.t)
@@ -558,7 +590,8 @@ D3SymbolTreeMap.prototype._handleLeaves = function() {
         .style('opacity', '0')
         .style('background-color', function(datum) {
             if (datum.t === undefined) return 'rgb(220,220,220)';
-            return D3SymbolTreeMap._symbolTypeColor(datum.t);
+            return D3SymbolTreeMap.getColorForType(datum.t)
+                .darker(0.3).toString();
         })
         .style('border', '1px solid black')
         .on('mouseover', function(datum){
@@ -654,8 +687,8 @@ D3SymbolTreeMap.prototype._makeSymbolBucketBackgroundImage = function(datum) {
                 }
                 var percent = 100 * (stats.size / datum.value);
                 var nowStop = lastStop + percent;
-                var tempcolor = D3SymbolTreeMap._symbolTypeColor(symbol_type);
-                var color = d3.rgb(tempcolor).brighter().toString();
+                var tempcolor = D3SymbolTreeMap.getColorForType(symbol_type);
+                var color = d3.rgb(tempcolor).toString();
                 text += color + ' ' + lastStop + '%, ' + color + ' ' +
                     nowStop + '%';
                 lastStop = nowStop;
@@ -833,7 +866,8 @@ D3SymbolTreeMap.prototype._createInfoBox = function() {
         .style('padding', '10px')
         .style('-webkit-user-select', 'none')
         .style('box-shadow', '3px 3px rgba(70,70,70,0.5)')
-        .style('border-radius', '10px');
+        .style('border-radius', '10px')
+        .style('white-space', 'nowrap');
 }
 
 D3SymbolTreeMap.prototype._showInfoBox = function(datum) {
@@ -883,14 +917,18 @@ D3SymbolTreeMap.prototype._showInfoBox = function(datum) {
             var header = table.append('tr');
             header.append('th').text('Type');
             header.append('th').text('Count');
-            header.append('th').text('Total Size (Bytes)');
+            header.append('th')
+                .style('white-space', 'nowrap')
+                .text('Total Size (Bytes)');
             for (var x=0; x<D3SymbolTreeMap._NM_SYMBOL_TYPES.length; x++) {
                 symbol_type = D3SymbolTreeMap._NM_SYMBOL_TYPES.charAt(x);
                 var stats = datum.symbol_stats[symbol_type];
                 if (stats !== undefined) {
                     var tr = table.append('tr');
                     tr.append('td')
-                    .text(D3SymbolTreeMap._getSymbolDescription(symbol_type));
+                        .style('white-space', 'nowrap')
+                        .text(D3SymbolTreeMap._getSymbolDescription(
+                            symbol_type));
                     tr.append('td').text(D3SymbolTreeMap._pretty(stats.count));
                     tr.append('td').text(D3SymbolTreeMap._pretty(stats.size));
                 }
@@ -905,8 +943,28 @@ D3SymbolTreeMap.prototype._hideInfoBox = function(datum) {
 }
 
 D3SymbolTreeMap.prototype._moveInfoBox = function(event) {
-    this.infobox.style('top', (event.pageY - 15) + 'px')
-        .style('left', (event.pageX + 15) + 'px');
+    var element = document.getElementById('infobox');
+    var w = element.offsetWidth;
+    var h = element.offsetHeight;
+    var offsetLeft = 10;
+    var offsetTop = 10;
+
+    var rightLimit = window.innerWidth;
+    var rightEdge = event.pageX + offsetLeft + w;
+    if (rightEdge > rightLimit) {
+        // Too close to screen edge, reflect around the cursor
+        offsetLeft = -1 * (w + offsetLeft);
+    }
+
+    var bottomLimit = window.innerHeight;
+    var bottomEdge = event.pageY + offsetTop + h;
+    if (bottomEdge > bottomLimit) {
+        // Too close ot screen edge, reflect around the cursor
+        offsetTop = -1 * (h + offsetTop);
+    }
+
+    this.infobox.style('top', (event.pageY + offsetTop) + 'px')
+        .style('left', (event.pageX + offsetLeft) + 'px');
 }
 
 D3SymbolTreeMap.prototype.biggestSymbols = function(maxRecords) {

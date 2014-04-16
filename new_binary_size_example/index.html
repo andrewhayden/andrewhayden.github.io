@@ -12,7 +12,12 @@
 <style>
 body {
     margin: 0px;
-    padding: 0px;
+    padding: 5px;
+}
+.swatch {
+    border: 1px solid rgb(100,100,100);
+    -webkit-user-select: none;
+    cursor: default;
 }
 </style>
 <script>
@@ -34,7 +39,7 @@ function init() {
 
 function getIdealSizes() {
     var width = window.innerWidth - 20;
-    var height = window.innerHeight - 100;
+    var height = window.innerHeight - 70;
     return {'width': width, 'height': height};
 }
 
@@ -177,13 +182,6 @@ function bigPathsReport() {
     showReport('100 Largest Paths', list, headers, dataFunction, styleFunction);
 }
 
-function escape(str) {
-    return str.replace(/&/g, '&amp;')
-              .replace(/"/g, '&quot;')
-              .replace(/</g, '&lt;')
-              .replace(/>/g, '&gt;');
-}
-
 function symbolFilterTextChanged() {
     if (filterChanging) return true;
     filterChanging = true;
@@ -214,6 +212,8 @@ function initFilterOptions() {
     for (var x=0; x<=25; x++) {
         var checkBox = document.getElementById('check_' + x);
         checkBox.onchange=updateFilterText;
+        var swatch = document.getElementById('swatch_' + x);
+        swatch.style.backgroundColor = D3SymbolTreeMap.getColorForType(checkBox.value).toString();
     }
     var gteCheckbox = document.getElementById('check_gte');
     gteCheckbox.onchange = function() {
@@ -398,55 +398,64 @@ function loadFilterSettings() {
     document.getElementById('height').value = savedSettings.height;
     document.getElementById('max_levels').value = savedSettings.maxLevels;
 }
+
+function escape(str) {
+    return str.replace(/&/g, '&amp;')
+              .replace(/"/g, '&quot;')
+              .replace(/</g, '&lt;')
+              .replace(/>/g, '&gt;');
+}
 </script>
 </head>
 <body onload='init()'>
-<div style='text-align: center'>
-<span style='font-size: x-large; font-weight: bold; font-variant: small-caps'>Binary Size Analysis<span id='subtitle'></span></span>
-<br><span style='font-size: small; font-style: italic;'></span>
 <div style='position: absolute; top: 5px; left: 5px;'>
-<input type='button' onclick='showOptions()' value='Customize!'>
-<span style='-webkit-user-select: none; cursor: help;' title='Controls: Double-click to zoom in, double-click outermost to zoom out, shift-double-click to return to root.'>[?]</span>
+  <input type='button' onclick='showOptions()' value='Options &amp; Legend...'>
+  <span style='-webkit-user-select: none; cursor: help;' title='Click to view the symbol legend or to configure filters and options for the treemap'>[?]</span>
 </div>
-    <a href='#' onclick='bigSymbolsReport()'>View Largest Symbols</a>
-    &nbsp;&nbsp;&nbsp;
-    <a href='#' onclick='bigPathsReport()'>View Largest Locations</a>
+<div style='position: absolute; right: 5px; top: 5px; white-space: nowrap;'>
+    Reports:
+    <input type='button' onclick='bigSymbolsReport()' value='Large Symbols' title='Click to view a report of the largest 100 symbols that are with the bounds of the treemap that is currently displayed.'>
+    <input type='button' onclick='bigPathsReport()' value='Large Files' title='Click to view a report of the largest 100 source files that are with the bounds of the treemap that is currently displayed.'>
+</div>
+<div style='text-align: center; margin-bottom: 5px;'>
+    <span style='font-size: x-large; font-weight: bold; font-variant: small-caps'>Binary Size Analysis<span id='subtitle'></span></span>
+    <br><span style='font-size: small; font-style: italic;'>Double-click a box to zoom in, double-click outermost title to zoom out.</span>
 </div>
 <table id='options_container' style='visibility: hidden; border: 3px ridge grey; padding: 0px; top: 50%; left: 50%; position: fixed; z-index: 2147483646; overflow: auto; background-color: rgba(255,255,255,0.9); border-radius: 10px; box-shadow: 10px 10px 5px rgba(80,80,80,0.7);'><tr><td style='vertical-align: top'>
     <table cellspacing=0 cellborder=0 style='width:100%'>
         <tr><th colspan=3 style='padding-bottom: .25em; text-decoration: underline;'>Symbol Types To Show</th></tr>
         <tr>
             <td style='width: 33%; white-space: nowrap; vertical-align: top;'>
-                <input checked type='checkbox' id='check_0' value='A'>Global absolute (A)
-                <br><input checked type='checkbox' id='check_1' value='B'>Global uninitialized data (B)
-                <br><input checked type='checkbox' id='check_2' value='b'>Local uninitialized data (b)
-                <br><input checked type='checkbox' id='check_3' value='C'>Global uninitialized common (C)
-                <br><input checked type='checkbox' id='check_4' value='D'>Global initialized data (D)
-                <br><input checked type='checkbox' id='check_5' value='d'>Local initialized data (d)
-                <br><input checked type='checkbox' id='check_6' value='G'>Global small initialized data (G)
-                <br><input checked type='checkbox' id='check_7' value='g'>Local small initialized data (g)
-                <br><input checked type='checkbox' id='check_8' value='i'>Indirect function (i)
+                    <span class='swatch' id='swatch_0'>&nbsp;&nbsp;&nbsp;</span><input checked type='checkbox' id='check_0' value='A'>Global absolute (A)
+                <br><span class='swatch' id='swatch_1'>&nbsp;&nbsp;&nbsp;</span><input checked type='checkbox' id='check_1' value='B'>Global uninitialized data (B)
+                <br><span class='swatch' id='swatch_2'>&nbsp;&nbsp;&nbsp;</span><input checked type='checkbox' id='check_2' value='b'>Local uninitialized data (b)
+                <br><span class='swatch' id='swatch_3'>&nbsp;&nbsp;&nbsp;</span><input checked type='checkbox' id='check_3' value='C'>Global uninitialized common (C)
+                <br><span class='swatch' id='swatch_4'>&nbsp;&nbsp;&nbsp;</span><input checked type='checkbox' id='check_4' value='D'>Global initialized data (D)
+                <br><span class='swatch' id='swatch_5'>&nbsp;&nbsp;&nbsp;</span><input checked type='checkbox' id='check_5' value='d'>Local initialized data (d)
+                <br><span class='swatch' id='swatch_6'>&nbsp;&nbsp;&nbsp;</span><input checked type='checkbox' id='check_6' value='G'>Global small initialized data (G)
+                <br><span class='swatch' id='swatch_7'>&nbsp;&nbsp;&nbsp;</span><input checked type='checkbox' id='check_7' value='g'>Local small initialized data (g)
+                <br><span class='swatch' id='swatch_8'>&nbsp;&nbsp;&nbsp;</span><input checked type='checkbox' id='check_8' value='i'>Indirect function (i)
             </td>
             <td style='width: 33%; white-space: nowrap; vertical-align: top;'>
-                <input checked type='checkbox' id='check_9' value='N'>Debugging (N)
-                <br><input checked type='checkbox' id='check_10' value='p'>Stack unwind (p)
-                <br><input checked type='checkbox' id='check_11' value='R'>Global read-only data (R)
-                <br><input checked type='checkbox' id='check_12' value='r'>Local read-only data (r)
-                <br><input checked type='checkbox' id='check_13' value='S'>Global small uninitialized data (S)
-                <br><input checked type='checkbox' id='check_14' value='s'>Local small uninitialized data (s)
-                <br><input checked type='checkbox' id='check_15' value='T'>Global code (T)
-                <br><input checked type='checkbox' id='check_16' value='t'>Local code (t)
-                <br><input checked type='checkbox' id='check_17' value='U'>Undefined (U)
+                    <span class='swatch' id='swatch_9'>&nbsp;&nbsp;&nbsp;</span><input checked type='checkbox' id='check_9' value='N'>Debugging (N)
+                <br><span class='swatch' id='swatch_10'>&nbsp;&nbsp;&nbsp;</span><input checked type='checkbox' id='check_10' value='p'>Stack unwind (p)
+                <br><span class='swatch' id='swatch_11'>&nbsp;&nbsp;&nbsp;</span><input checked type='checkbox' id='check_11' value='R'>Global read-only data (R)
+                <br><span class='swatch' id='swatch_12'>&nbsp;&nbsp;&nbsp;</span><input checked type='checkbox' id='check_12' value='r'>Local read-only data (r)
+                <br><span class='swatch' id='swatch_13'>&nbsp;&nbsp;&nbsp;</span><input checked type='checkbox' id='check_13' value='S'>Global small uninitialized data (S)
+                <br><span class='swatch' id='swatch_14'>&nbsp;&nbsp;&nbsp;</span><input checked type='checkbox' id='check_14' value='s'>Local small uninitialized data (s)
+                <br><span class='swatch' id='swatch_15'>&nbsp;&nbsp;&nbsp;</span><input checked type='checkbox' id='check_15' value='T'>Global code (T)
+                <br><span class='swatch' id='swatch_16'>&nbsp;&nbsp;&nbsp;</span><input checked type='checkbox' id='check_16' value='t'>Local code (t)
+                <br><span class='swatch' id='swatch_17'>&nbsp;&nbsp;&nbsp;</span><input checked type='checkbox' id='check_17' value='U'>Undefined (U)
             </td>
             <td style='width: 33%; white-space: nowrap; vertical-align: top;'>
-                <input checked type='checkbox' id='check_18' value='u'>Unique (u)
-                <br><input checked type='checkbox' id='check_19' value='V'>Global weak object (V)
-                <br><input checked type='checkbox' id='check_20' value='v'>Local weak object (v)
-                <br><input checked type='checkbox' id='check_21' value='W'>Global weak (W)
-                <br><input checked type='checkbox' id='check_22' value='w'>Local weak (w)
-                <br><input checked type='checkbox' id='check_23' value='@'>Vtable entry (@)
-                <br><input checked type='checkbox' id='check_24' value='-'>STABS debugging (-)
-                <br><input checked type='checkbox' id='check_25' value='?'>Unrecognized (?)
+                    <span class='swatch' id='swatch_18'>&nbsp;&nbsp;&nbsp;</span><input checked type='checkbox' id='check_18' value='u'>Unique (u)
+                <br><span class='swatch' id='swatch_19'>&nbsp;&nbsp;&nbsp;</span><input checked type='checkbox' id='check_19' value='V'>Global weak object (V)
+                <br><span class='swatch' id='swatch_20'>&nbsp;&nbsp;&nbsp;</span><input checked type='checkbox' id='check_20' value='v'>Local weak object (v)
+                <br><span class='swatch' id='swatch_21'>&nbsp;&nbsp;&nbsp;</span><input checked type='checkbox' id='check_21' value='W'>Global weak symbol (W)
+                <br><span class='swatch' id='swatch_22'>&nbsp;&nbsp;&nbsp;</span><input checked type='checkbox' id='check_22' value='w'>Local weak symbol (w)
+                <br><span class='swatch' id='swatch_23'>&nbsp;&nbsp;&nbsp;</span><input checked type='checkbox' id='check_23' value='@'>Vtable entry (@)
+                <br><span class='swatch' id='swatch_24'>&nbsp;&nbsp;&nbsp;</span><input checked type='checkbox' id='check_24' value='-'>STABS debugging (-)
+                <br><span class='swatch' id='swatch_25'>&nbsp;&nbsp;&nbsp;</span><input checked type='checkbox' id='check_25' value='?'>Unrecognized (?)
             </td>
         </tr>
         <tr><td colspan=3 style='text-align: center; white-space: nowrap; padding-top: 1em;'>
@@ -491,7 +500,7 @@ function loadFilterSettings() {
         </tr>
         <tr>
             <td style='white-space: nowrap vertical-align: top;;'>
-                Summarize data more than <span style='font-style: italic;'>n</span> levels deep:
+                Show at most <span style='font-style: italic;'>n</span> levels of detail at a time:
             </td>
             <td style='text-align: right; vertical-align: top;'>
                 <input id='max_levels' size=4 value='2' style='text-align: right;'><span style='-webkit-user-select: none; cursor: help;' title='Increasing this value shows more detail without the need to zoom, but uses more computing power.'>[?]</span>
